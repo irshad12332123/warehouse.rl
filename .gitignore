@@ -6,6 +6,11 @@ __pycache__/
 venv/
 .env/
 
+#images
+*.png
+*.jpg
+*.jpeg
+
 # Model checkpoints / outputs
 *.zip
 *.npz
