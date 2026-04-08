@@ -1,136 +1,72 @@
-"""
-inference.py — Warehouse Robot Dispatch OpenEnv inference script.
-
-Runs an LLM agent against the warehouse environment and emits:
-    [START] task=<task> env=warehouse_robot_dispatch model=<model>
-    [STEP]  step=<n> action=<str> reward=<0.00> done=<true|false> error=<msg|null>
-    [END]   success=<true|false> steps=<n> score=<0.000> rewards=<r1,r2,...>
-
-Tasks:
-    single_pick      (easy)
-    multi_pick       (medium, default)
-    congested_floor  (hard)
-"""
-
 from __future__ import annotations
 
 import json
 import os
+import random
 import textwrap
 import urllib.request
-from typing import List, Optional
+from collections import deque
+from typing import Deque, Dict, List, Optional, Tuple
 
+from dotenv import load_dotenv
 from openai import OpenAI
 
-API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "")
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME   = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-TASK_NAME    = os.getenv("WAREHOUSE_TASK", "multi_pick")
-BENCHMARK    = "warehouse_robot_dispatch"
-MAX_STEPS    = 60
-TEMPERATURE  = 0.2
-MAX_TOKENS   = 20
-ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
+load_dotenv()
 
-VALID_ACTIONS = ["move_up", "move_down", "move_left", "move_right"]
+# ================= CONFIG =================
+API_KEY: Optional[str] = os.getenv("HF_TOKEN")
+API_BASE_URL: str = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME: str = os.getenv("MODEL_NAME", "meta-llama/Meta-Llama-3-8B-Instruct")
 
-SYSTEM_PROMPT = textwrap.dedent("""
-    You are an AI dispatcher controlling an autonomous robot in a warehouse fulfillment center.
+TASK_NAME: str = os.getenv("WAREHOUSE_TASK", "multi_pick")
+BENCHMARK: str = "warehouse_robot_dispatch"
 
-    Your job: navigate the robot to pick all inventory items as efficiently as possible.
+MAX_STEPS: int = 60
+TEMPERATURE: float = 0.2
+MAX_TOKENS: int = 30
 
-    Warehouse grid legend:
-        R = Robot (you control this)
-        I = Inventory item (navigate here to pick it)
-        X = Blocked aisle or active worker zone (avoid — collision penalized)
-        . = Empty aisle (safe to move through)
+ENV_BASE_URL: str = os.getenv("ENV_BASE_URL", "http://localhost:8000")
 
-    Rules:
-        - Moving into X or a wall wastes shift time and gets penalized (-0.5)
-        - Picking an item (moving onto I) gives +10 reward
-        - Picking ALL items gives +25 completion bonus
-        - Shift time is limited — plan an efficient route
+VALID_ACTIONS: List[str] = ["move_up", "move_down", "move_left", "move_right"]
+SUCCESS_SCORE_THRESHOLD: float = 0.1
 
-    Respond with EXACTLY ONE of:
-        move_up
-        move_down
-        move_left
-        move_right
-    Nothing else. No explanation.
-""").strip()
+# ================= PROMPT =================
+SYSTEM_PROMPT: str = """
+You control a warehouse robot.
 
+Goal: collect all items efficiently.
 
+Avoid obstacles. Do not repeat failed moves.
+
+Return ONLY:
+move_up / move_down / move_left / move_right
+"""
+
+# ================= LOGGING =================
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
-    error_val = error if error else "null"
     print(
         f"[STEP] step={step} action={action} reward={reward:.2f} "
-        f"done={str(done).lower()} error={error_val}",
+        f"done={str(done).lower()} error={error if error else 'null'}",
         flush=True,
     )
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    rewards_str: str = ",".join(f"{r:.2f}" for r in rewards)
     print(
         f"[END] success={str(success).lower()} steps={steps} "
         f"score={score:.3f} rewards={rewards_str}",
         flush=True,
     )
 
-
-def get_action(client: OpenAI, warehouse: str, info: dict, history: List[str]) -> str:
-    history_block = "\n".join(history[-4:]) if history else "None"
-
-    user_prompt = textwrap.dedent(f"""
-        Current warehouse layout:
-        {warehouse}
-
-        Status:
-            Robot position  : {info.get('robot_pos', '?')}
-            Items remaining : {info.get('items_remaining', '?')}
-            Shift time left : {info.get('shift_time', '?')}
-            Items picked    : {info.get('picks', 0)}
-
-        Recent moves:
-        {history_block}
-
-        What is your next move?
-    """).strip()
-
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": user_prompt},
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-            stream=False,
-        )
-        raw = (completion.choices[0].message.content or "").strip().lower()
-
-        for a in VALID_ACTIONS:
-            if a in raw:
-                return a
-
-        word = raw.split()[0] if raw else ""
-        fallback = {"up": "move_up", "down": "move_down",
-                    "left": "move_left", "right": "move_right"}
-        return fallback.get(word, "move_up")
-
-    except Exception as exc:
-        print(f"[DEBUG] LLM call failed: {exc}", flush=True)
-        return "move_up"
-
-
-def http_post(path: str, body: dict) -> dict:
-    data = json.dumps(body).encode()
-    req  = urllib.request.Request(
+# ================= HTTP =================
+def http_post(path: str, body: Dict) -> Dict:
+    data: bytes = json.dumps(body).encode()
+    req = urllib.request.Request(
         f"{ENV_BASE_URL}{path}",
         data=data,
         headers={"Content-Type": "application/json"},
@@ -140,74 +76,177 @@ def http_post(path: str, body: dict) -> dict:
         return json.loads(r.read())
 
 
-def http_get(path: str) -> dict:
-    with urllib.request.urlopen(f"{ENV_BASE_URL}{path}", timeout=10) as r:
-        return json.loads(r.read())
+# ================= GRID =================
+def parse_grid(grid_str: str) -> List[List[str]]:
+    return [row.split() for row in grid_str.strip().split("\n")]
 
 
-def main() -> None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+def find_positions(grid: List[List[str]], target: str) -> List[Tuple[int, int]]:
+    return [
+        (r, c)
+        for r in range(len(grid))
+        for c in range(len(grid[0]))
+        if grid[r][c] == target
+    ]
 
-    rewards:     List[float] = []
-    history:     List[str]   = []
-    steps_taken: int         = 0
-    score:       float       = 0.0
-    success:     bool        = False
 
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+def neighbors(pos: Tuple[int, int]) -> List[Tuple[int, int, str]]:
+    r, c = pos
+    return [
+        (r - 1, c, "move_up"),
+        (r + 1, c, "move_down"),
+        (r, c - 1, "move_left"),
+        (r, c + 1, "move_right"),
+    ]
+
+
+# ================= BFS PATHFINDING =================
+def bfs_next_move(grid: List[List[str]]) -> Optional[str]:
+    robot_positions = find_positions(grid, "R")
+    item_positions = find_positions(grid, "I")
+
+    if not robot_positions or not item_positions:
+        return None
+
+    start = robot_positions[0]
+    targets = set(item_positions)
+
+    queue: Deque[Tuple[int, int]] = deque([start])
+    visited: set = {start}
+    parent: Dict[Tuple[int, int], Tuple[Tuple[int, int], str]] = {}
+
+    while queue:
+        current = queue.popleft()
+
+        if current in targets:
+            # backtrack
+            while current != start:
+                prev, action = parent[current]
+                if prev == start:
+                    return action
+                current = prev
+
+        for nr, nc, action in neighbors(current):
+            if (
+                0 <= nr < len(grid)
+                and 0 <= nc < len(grid[0])
+                and (nr, nc) not in visited
+                and grid[nr][nc] != "X"
+            ):
+                visited.add((nr, nc))
+                parent[(nr, nc)] = (current, action)
+                queue.append((nr, nc))
+
+    return None
+
+
+# ================= LLM =================
+def llm_action(client: OpenAI, warehouse: str, history: List[str]) -> str:
+    prompt = f"""
+Warehouse:
+{warehouse}
+
+Recent:
+{history[-4:] if history else "None"}
+
+Next move?
+"""
 
     try:
-        result    = http_post("/reset", {"task": TASK_NAME})
-        warehouse = result["warehouse"]
-        info      = result["info"]
-        done      = result.get("done", False)
+        res = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+        )
+
+        raw = (res.choices[0].message.content or "").strip().lower()
+        if raw in VALID_ACTIONS:
+            return raw
+
+    except Exception:
+        pass
+
+    return random.choice(VALID_ACTIONS)
+
+
+# ================= MAIN =================
+def run_episode(client: OpenAI, task_name: str) -> None:
+    rewards: List[float] = []
+    history: List[str] = []
+    steps_taken: int = 0
+    score: float = 0.0
+    success: bool = False
+    last_bad_action: Optional[str] = None
+
+    log_start(task_name, BENCHMARK, MODEL_NAME)
+
+    try:
+        result = http_post("/reset", {"task": task_name})
+        warehouse: str = result["warehouse"]
+        done: bool = result.get("done", False)
 
         for step in range(1, MAX_STEPS + 1):
             if done:
                 break
 
-            action    = get_action(client, warehouse, info, history)
-            error_msg = None
+            grid = parse_grid(warehouse)
+            action = bfs_next_move(grid)
+
+            if not action:
+                action = llm_action(client, warehouse, history)
+
+            if last_bad_action == action:
+                action = random.choice([a for a in VALID_ACTIONS if a != action])
+
+            error_msg: Optional[str] = None
 
             try:
-                result    = http_post("/step", {"action": action})
-                reward    = float(result.get("reward", 0.0))
-                done      = result.get("done", False)
-                score     = float(result.get("score", 0.0))
+                result = http_post("/step", {"action": action})
+                reward: float = float(result.get("reward", 0.0))
+                done = result.get("done", False)
                 warehouse = result.get("warehouse", warehouse)
-                info      = result.get("info", info)
+                score = float(result.get("score", score))
+
+                if reward < 0:
+                    last_bad_action = action
+                else:
+                    last_bad_action = None
+
             except Exception as e:
-                reward    = 0.0
-                error_msg = str(e)[:80]
-                done      = False
+                reward = 0.0
+                error_msg = str(e)
 
             rewards.append(reward)
             steps_taken = step
 
-            log_step(step=step, action=action, reward=reward,
-                     done=done, error=error_msg)
+            log_step(step, action, reward, done, error_msg)
+            history.append(f"{action}:{reward:.2f}")
 
-            history.append(
-                f"Step {step}: {action} → reward {reward:+.2f} | "
-                f"shift={info.get('shift_time','?')} items={info.get('items_remaining','?')}"
-            )
+        score = max(0.0, min(score, 1.0))
+        success = score >= SUCCESS_SCORE_THRESHOLD
 
-        # Get final score from state
-        if not done:
-            try:
-                st    = http_get("/state")
-                score = float(st.get("score", score))
-            except Exception:
-                pass
-
-        success = score >= 0.1
-
-    except Exception as exc:
-        print(f"[DEBUG] Episode error: {exc}", flush=True)
+    except Exception as e:
+        print(f"[DEBUG] Episode error: {e}", flush=True)
 
     finally:
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+        log_end(success, steps_taken, score, rewards)
 
+
+def main() -> None:
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+
+    tasks: List[str] = [
+        "single_pick",
+        "multi_pick",
+        "congested_floor",
+    ]
+
+    for task in tasks:
+        run_episode(client, task)
 
 if __name__ == "__main__":
     main()

@@ -127,27 +127,24 @@ def reset(body: ResetRequest = ResetRequest()):
 
     task = body.task if body.task in TASK_CONFIGS else DEFAULT_TASK
     cfg  = TASK_CONFIGS[task]
+
     _task_name    = task
     _total_reward = 0.0
     _steps_taken  = 0
     _done         = False
 
+    difficulty: str = cfg["difficulty"]
+
     _env = WarehouseEnv(
-        width       = cfg["width"],
-        height      = cfg["height"],
-        num_items   = cfg["num_items"],
-        num_blocked = cfg["num_blocked"],
-        max_steps   = cfg["max_steps"],
-        shift_time  = cfg["shift_time"],
-        use_shaping = False,
-        seed        = body.seed,
+        difficulty=difficulty,
+        seed=body.seed,
     )
 
     obs, _ = _env.reset(seed=body.seed)
 
     return {
         "task":        task,
-        "difficulty":  cfg["difficulty"],
+        "difficulty":  difficulty,
         "description": cfg["description"],
         "warehouse":   _env.render(),
         "observation": obs.tolist(),
@@ -155,14 +152,18 @@ def reset(body: ResetRequest = ResetRequest()):
             "robot_pos":       [_env.robot.x, _env.robot.y],
             "items_remaining": _env._items_remaining,
             "shift_time":      _env.robot.shift_time,
-            "max_steps":       cfg["max_steps"],
+            "max_steps":       _env.max_steps,  # ✅ now from env
             "action_space":    ["move_up", "move_down", "move_left", "move_right"],
-            "grid_legend":     {"R": "Robot", "I": "Inventory item", "X": "Blocked aisle", ".": "Empty aisle"},
+            "grid_legend": {
+                "R": "Robot",
+                "I": "Inventory item",
+                "X": "Blocked aisle",
+                ".": "Empty aisle",
+            },
         },
         "done":  False,
         "score": 0.0,
     }
-
 
 @app.post("/step")
 def step(body: StepRequest):
