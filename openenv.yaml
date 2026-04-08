@@ -1,0 +1,156 @@
+# openenv.yaml — Warehouse Robot Dispatch OpenEnv specification
+#
+# Real-world motivation:
+#   Fulfillment centers at companies like Amazon, Flipkart, and Myntra
+#   use Autonomous Mobile Robots (AMRs) to navigate warehouse floors,
+#   locate inventory items, and pick them for order dispatch.
+#   Human supervisors dispatch and monitor these robots in real time.
+#   This environment simulates that exact operational task.
+
+name: warehouse-robot-dispatch
+version: "1.0.0"
+description: >
+  An RL environment simulating Autonomous Mobile Robot (AMR) navigation
+  in a fulfillment center warehouse. The agent dispatches a robot to pick
+  all inventory items while avoiding blocked aisles and active worker zones
+  within a limited shift time. Directly models real-world warehouse
+  operations used by Amazon Robotics, Flipkart, and similar companies.
+
+authors:
+  - name: "RL-Agent Team"
+
+tags:
+  - warehouse
+  - logistics
+  - robotics
+  - navigation
+  - real-world
+  - openenv
+
+# ── Server ────────────────────────────────────────────────────────────────
+server:
+  image: warehouse-robot-dispatch
+  port: 8000
+  health_check: /health
+  startup_timeout: 60
+
+# ── Action space ──────────────────────────────────────────────────────────
+action_space:
+  type: discrete_string
+  values:
+    - move_up
+    - move_down
+    - move_left
+    - move_right
+  description: >
+    One of four cardinal direction commands for the robot.
+    Moving into a blocked aisle (X) or wall incurs a collision penalty.
+    Moving onto an inventory item (I) automatically picks it.
+
+# ── Observation space ─────────────────────────────────────────────────────
+observation_space:
+  type: dict
+  fields:
+    warehouse:
+      type: string
+      description: >
+        ASCII floor plan of the warehouse.
+        R=Robot, I=Inventory item, X=Blocked aisle/worker zone, .=Empty aisle.
+    observation:
+      type: array
+      dtype: float32
+      description: >
+        Normalized feature vector:
+        Per item: [rel_row, rel_col, manhattan_dist, is_active]
+        Robot state: [row%, col%, shift_time%, items_remaining%]
+        Sensors: [blocked_up, blocked_down, blocked_left, blocked_right]
+    info:
+      type: dict
+      fields:
+        robot_pos:        {type: array,   description: "[row, col] of robot"}
+        items_remaining:  {type: integer, description: "Items not yet picked"}
+        shift_time:       {type: integer, description: "Remaining shift time units"}
+        picks:            {type: integer, description: "Items picked so far"}
+
+# ── Tasks ─────────────────────────────────────────────────────────────────
+tasks:
+
+  - id: single_pick
+    name: "Single Item Pick"
+    description: >
+      Small warehouse (5x5 grid) with 3 blocked zones.
+      Robot must locate and pick 1 inventory item within 50 steps.
+      Models a simple single-item order fulfillment dispatch.
+    difficulty: easy
+    reset_params:
+      task: single_pick
+    max_steps: 50
+    reward_range: [-10.0, 35.0]
+    score_range:  [0.0, 1.0]
+    grader:
+      type: score_from_response
+      field: score
+      success_threshold: 0.1
+    success_criteria: >
+      Score >= 0.1. Achieved by picking the item before shift time expires.
+    tags: [single-target, navigation]
+
+  - id: multi_pick
+    name: "Multi-Item Order Fulfillment"
+    description: >
+      Standard warehouse (5x5 grid) with 3 blocked zones.
+      Robot must pick 2 inventory items within 100 steps.
+      Requires planning an efficient route across the warehouse floor.
+      Models real multi-item order picking in fulfillment centers.
+    difficulty: medium
+    reset_params:
+      task: multi_pick
+    max_steps: 100
+    reward_range: [-15.0, 45.0]
+    score_range:  [0.0, 1.0]
+    grader:
+      type: score_from_response
+      field: score
+      success_threshold: 0.1
+    success_criteria: >
+      Score >= 0.1. Picking both items before shift time gives full completion bonus.
+    tags: [multi-target, route-planning, default]
+
+  - id: congested_floor
+    name: "Peak-Hour Congested Warehouse"
+    description: >
+      Large warehouse (7x7 grid) with 8 blocked zones (worker zones + charging stations).
+      Robot must pick 3 inventory items within 150 steps.
+      High obstacle density requires careful pathfinding to avoid collisions.
+      Models peak-hour warehouse operations where many aisles are occupied.
+    difficulty: hard
+    reset_params:
+      task: congested_floor
+    max_steps: 150
+    reward_range: [-20.0, 55.0]
+    score_range:  [0.0, 1.0]
+    grader:
+      type: score_from_response
+      field: score
+      success_threshold: 0.1
+    success_criteria: >
+      Score >= 0.1. Picking all 3 items with minimal collisions maximizes score.
+    tags: [multi-target, obstacle-avoidance, congestion]
+
+# ── Scoring ────────────────────────────────────────────────────────────────
+scoring:
+  method: normalized_reward
+  formula: "score = clamp((total_reward + 5) / (max_reward + 5), 0.0, 1.0)"
+  max_reward_formula: "num_items * 10.0 + 25.0"
+  description: >
+    Partial credit for each item picked (+10 each).
+    Full completion bonus (+25) for picking all items.
+    Collision penalty (-0.5 per blocked move) and step cost (-0.1 per step).
+    Score normalized to [0, 1] — never binary, always reflects partial progress.
+  final_score: mean_across_tasks
+
+# ── Infrastructure ─────────────────────────────────────────────────────────
+infra:
+  max_runtime_seconds: 1200
+  memory_gb: 8
+  vcpu: 2

@@ -1,0 +1,17 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.env/
+
+# Model checkpoints / outputs
+*.zip
+*.npz
+
+# Logs
+*.log
+
+# OS stuff
+.DS_Store

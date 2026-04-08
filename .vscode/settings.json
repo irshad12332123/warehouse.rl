@@ -1,0 +1,139 @@
+{
+  "workbench.colorTheme": "Material Deep Ocean",
+  "workbench.activityBar.location": "top",
+  "workbench.editor.showTabs": "single",
+  "workbench.statusBar.visible": false,
+  "workbench.startupEditor": "none",
+  "workbench.tips.enabled": false,
+  "editor.minimap.enabled": false,
+  "breadcrumbs.enabled": false,
+  "workbench.sideBar.location": "left",
+  "workbench.iconTheme": "a-file-icon-vscode",
+  "material-icon-theme.hidesExplorerArrows": true,
+  "workbench.tree.enableStickyScroll": false,
+  "workbench.tree.renderIndentGuides": "none",
+  "workbench.tree.indent": 8,
+  "explorer.compactFolders": false,
+  "explorer.confirmDragAndDrop": false,
+  "explorer.confirmDelete": false,
+  "explorer.decorations.badges": false,
+
+  "git.decorations.enabled": false,
+  "window.zoomLevel": 0.5,
+
+  "apc.stylesheet": {
+    ".monaco-workbench": "font-family: 'Cascadia Code','JetBrains Mono', 'Fira Code', monospace;",
+
+    ".activitybar": "background: #0f111a !important; border-right: none !important;",
+    ".activitybar .action-item .action-label": "filter: grayscale(20%);",
+
+    ".sidebar": "background: #0f111a !important; border-right: 1px solid #1a1d29;",
+    ".sidebar .title-label": "font-weight: 600; letter-spacing: 0.5px;",
+
+    ".editor-group-container": "background: #0d0f17 !important;",
+    ".editor-instance": "padding: 6px;",
+
+    ".tabs-container": "background: #0f111a !important; height: 34px !important;",
+    ".tab": "border-radius: 8px 8px 0 0; margin: 0 4px; padding: 6px 12px;",
+    ".tab.active": "background: #1a1d2e !important;",
+
+    ".statusbar": "background: #0f111a !important; border-top: 1px solid #1a1d29; font-size: 11px;",
+
+    ".monaco-editor": "background: #0d0f17 !important;",
+    ".monaco-editor .cursor": "border-left: 2px solid #7aa2f7 !important;",
+
+    ".quick-input-widget": "border-radius: 10px !important; backdrop-filter: blur(10px);",
+    ".suggest-widget": "border-radius: 10px !important; overflow: hidden;",
+
+    ".monaco-list-row": "border-radius: 6px;",
+    ".monaco-list-row.focused": "background: #1a1d2e !important;",
+
+    ".scrollbar": "opacity: 0.4;",
+    ".scrollbar:hover": "opacity: 0.8;"
+  },
+
+  "apc.electron": {
+    "titleBarStyle": "hiddenInset",
+    "trafficLightPosition": {
+      "x": 14,
+      "y": 10
+    }
+  },
+
+
+  "editor.multiCursorModifier": "ctrlCmd",
+  "editor.cursorBlinking": "expand",
+  "editor.cursorStyle":"line",
+  "editor.cursorSmoothCaretAnimation": "on",
+  "editor.cursorWidth":3,
+  "editor.smoothScrolling": true,
+  "workbench.colorCustomizations": {
+    "editorCursor.background": "#000000",
+    "editorOverviewRuler.wordHighlightStrongForeground": "#0000",
+    "editorOverviewRuler.selectionHighlightForeground": "#0000",
+    "editorOverviewRuler.rangeHighlightForeground": "#0000",
+    "editorOverviewRuler.wordHighlightForeground": "#0000",
+    "editorOverviewRuler.bracketMatchForeground": "#0000",
+    "editorOverviewRuler.findMatchForeground": "#0000",
+    "editorOverviewRuler.modifiedForeground": "#0000",
+    "editorOverviewRuler.deletedForeground": "#0000",
+    "editorOverviewRuler.warningForeground": "#0000",
+    "editorOverviewRuler.addedForeground": "#0000",
+    "editorOverviewRuler.errorForeground": "#0000",
+    "editorOverviewRuler.infoForeground": "#0000",
+    "editorOverviewRuler.border": "#0000",
+    "[Aura Dracula Spirit (Soft)]": {
+      "editorSuggestWidget.selectedBackground": "#3A334B",
+      "sideBar.background": "#191521"
+    }
+  },
+  "editor.fontFamily": "JetBrains Mono",
+  "editor.fontSize": 17,
+  "editor.fontLigatures": true,
+  "editor.lineHeight": 50,
+  "editor.tokenColorCustomizations": {
+    "textMateRules": [
+      {
+        "scope": "comment",
+        "settings": {
+          "fontStyle": "italic"
+        }
+      }
+    ]
+  },
+  "editor.stickyScroll.enabled": false,
+  "editor.colorDecorators": false,
+  "editor.codeLens": false,
+  "editor.links": false,
+  "editor.matchBrackets": "never",
+  "editor.parameterHints.enabled": false,
+  "editor.lightbulb.enabled": "off",
+  "editor.hover.enabled": "on",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "scm.diffDecorations": "none",
+  "editor.lineNumbers": "relative",
+  "editor.tabSize": 2,
+  "editor.detectIndentation": false,
+  "editor.showFoldingControls": "never",
+  "editor.guides.indentation": false,
+  "editor.renderWhitespace": "none",
+  "editor.renderLineHighlight": "none",
+  "editor.occurrencesHighlight": "off",
+  "editor.selectionHighlight": false,
+  "editor.scrollbar.horizontal": "hidden",
+  "editor.scrollbar.vertical": "hidden",
+  "editor.overviewRulerBorder": false,
+  "editor.hideCursorInOverviewRuler": true,
+  "editor.quickSuggestions": {
+    "comments": "on",
+    "strings": "on",
+    "other": "on"
+  },
+  "editor.suggestOnTriggerCharacters": true,
+  "editor.tabCompletion": "on",
+  "editor.snippetSuggestions": "top",
+  "emmet.triggerExpansionOnTab": true,
+  "files.autoSave": "afterDelay",
+  "extensions.ignoreRecommendations": true,
+}
