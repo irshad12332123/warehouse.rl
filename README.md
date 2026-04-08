@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Warehouse Robot Dispatch — OpenEnv
 
 [![OpenEnv](https://img.shields.io/badge/OpenEnv-compatible-blue)](https://huggingface.co/openenv)
@@ -206,3 +207,6 @@ warehouse-robot-dispatch/
 - Score always in `[0.0, 1.0]`
 - Reward signal at every step (not binary end-of-episode)
 - 3 tasks: easy → medium → hard with deterministic graders
+=======
+# warehouse.rl
+>>>>>>> b76604b (Initial commit)
