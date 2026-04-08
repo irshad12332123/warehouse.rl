@@ -21,3 +21,4 @@ venv/
 # OS stuff
 .DS_Store
 .env
+*.png
