@@ -1,17 +1,23 @@
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+# warehouse.rl
+=======
+>>>>>>> 1887b2c (added readme)
 # Warehouse Robot Dispatch — OpenEnv
 
 [![OpenEnv](https://img.shields.io/badge/OpenEnv-compatible-blue)](https://huggingface.co/openenv)
 
-An RL environment simulating **Autonomous Mobile Robot (AMR) navigation** in a 
-fulfillment center warehouse — the exact task performed by robots at Amazon 
+An RL environment simulating **Autonomous Mobile Robot (AMR) navigation** in a
+fulfillment center warehouse — the exact task performed by robots at Amazon
 Robotics, Flipkart, and Myntra every day.
 
 ---
 
 ## Real-World Motivation
 
-Modern fulfillment centers use AMRs to navigate warehouse floors, locate 
-inventory items at shelf locations, and pick them for order dispatch. Human 
+Modern fulfillment centers use AMRs to navigate warehouse floors, locate
+inventory items at shelf locations, and pick them for order dispatch. Human
 supervisors dispatch these robots and monitor their efficiency in real time.
 
 This environment models that operational task:
@@ -50,7 +56,7 @@ Example 5x5 warehouse:
 | `move_left` | West | Robot moves one cell left |
 | `move_right` | East | Robot moves one cell right |
 
-Moving onto an inventory item (`I`) automatically picks it.  
+Moving onto an inventory item (`I`) automatically picks it.
 Moving into a blocked zone (`X`) or wall returns a collision penalty.
 
 ---
@@ -88,15 +94,15 @@ Each step returns a JSON object with:
 | `congested_floor` | 7×7 | 3 | 8 | 150 | Hard |
 
 ### Task 1: Single Item Pick (Easy)
-Pick 1 inventory item in a small 5×5 warehouse with 3 blocked aisles.  
+Pick 1 inventory item in a small 5×5 warehouse with 3 blocked aisles.
 Models a simple single-item order fulfillment dispatch.
 
 ### Task 2: Multi-Item Order Fulfillment (Medium)
-Pick 2 inventory items in a standard 5×5 warehouse.  
+Pick 2 inventory items in a standard 5×5 warehouse.
 Requires planning an efficient route across the floor.
 
 ### Task 3: Peak-Hour Congested Warehouse (Hard)
-Pick 3 inventory items in a 7×7 warehouse with 8 blocked zones.  
+Pick 3 inventory items in a 7×7 warehouse with 8 blocked zones.
 Models peak-hour operations where many aisles are occupied by workers.
 
 ---
@@ -206,3 +212,6 @@ warehouse-robot-dispatch/
 - Score always in `[0.0, 1.0]`
 - Reward signal at every step (not binary end-of-episode)
 - 3 tasks: easy → medium → hard with deterministic graders
+# warehouse.rl
+
+

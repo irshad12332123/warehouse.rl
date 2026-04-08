@@ -140,13 +140,45 @@ tasks:
 # ── Scoring ────────────────────────────────────────────────────────────────
 scoring:
   method: normalized_reward
-  formula: "score = clamp((total_reward + 5) / (max_reward + 5), 0.0, 1.0)"
+
+  # Formula implemented in server.py _compute_score():
+  #   score = clamp((total_reward + OFFSET) / (max_reward + OFFSET), 0.0, 1.0)
+  #
+  # Constants:
+  #   R_PICK        = +10.0  per item collected
+  #   R_COMPLETION  = +25.0  bonus for collecting all items
+  #   R_STEP        = -0.1   per step taken (efficiency cost)
+  #   R_BLOCKED     = -0.5   per collision with wall or obstacle
+  #   R_TIMEOUT     = -5.0   if shift time expires before completion
+  #   OFFSET        = 10.0   floor shift — ensures partial item picks
+  #                          always yield a positive score, protecting
+  #                          partial credit even after timeout penalties
+  #
+  # max_reward = num_items * R_PICK + R_COMPLETION
+  #   easy   (1 item):  1 * 10 + 25 = 35
+  #   medium (2 items): 2 * 10 + 25 = 45
+  #   hard   (3 items): 3 * 10 + 25 = 55
+  #
+  # Example scores (no collisions, optimal path):
+  #   single_pick complete:     score ≈ (35 - steps*0.1 + 10) / (35 + 10)
+  #   multi_pick complete:      score ≈ (45 - steps*0.1 + 10) / (45 + 10)
+  #   congested_floor complete: score ≈ (55 - steps*0.1 + 10) / (55 + 10)
+  #   zero reward (no picks):   score = 10 / (max_reward + 10)  [partial credit]
+
+  formula: "score = clamp((total_reward + 10) / (max_reward + 10), 0.0, 1.0)"
   max_reward_formula: "num_items * 10.0 + 25.0"
+  score_offset: 10.0
+
   description: >
     Partial credit for each item picked (+10 each).
     Full completion bonus (+25) for picking all items.
-    Collision penalty (-0.5 per blocked move) and step cost (-0.1 per step).
-    Score normalized to [0, 1] — never binary, always reflects partial progress.
+    Step cost (-0.1 per step) and collision penalty (-0.5 per blocked move)
+    reduce the score proportionally.
+    A fixed offset of +10 is added to both numerator and denominator so that
+    any episode where at least one item is picked always scores above the
+    zero-pick baseline, regardless of timeout or collision penalties.
+    Score is always in [0, 1] — never binary, always reflects partial progress.
+
   final_score: mean_across_tasks
 
 # ── Infrastructure ─────────────────────────────────────────────────────────
