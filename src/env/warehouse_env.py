@@ -25,6 +25,10 @@ Reward design:
     R_PICK=+10.0       (item successfully picked)
     R_COMPLETION=+25.0 (all items picked — shift bonus)
     R_TIMEOUT=-5.0     (shift ended without completion)
+
+Scoring formula (aligned with openenv.yaml and server.py):
+    score = clamp((total_reward + 10) / (max_reward + 10), 0.0, 1.0)
+    max_reward = num_items * R_PICK + R_COMPLETION
 """
 from __future__ import annotations
 
@@ -53,7 +57,11 @@ R_PICK: float       = 10.0
 R_COMPLETION: float = 25.0
 R_TIMEOUT: float    = -5.0
 
-SHAPING_WEIGHT: float = 0.3
+# Reduced from 0.3 → 0.1 to prevent shaping noise from distorting total_reward.
+# At 0.3, the shaping signal was large enough to push total_reward below the
+# scoring offset on suboptimal (but successful) paths, giving unfairly low scores.
+# At 0.1 it still guides the agent toward items without corrupting the score signal.
+SHAPING_WEIGHT: float = 0.1
 
 
 # ================= ENV =================
@@ -82,32 +90,32 @@ class WarehouseEnv(gym.Env):
         if difficulty == "easy":
             self.width = 5
             self.height = 5
-            self.num_items = 2
-            self.num_blocked = 2
-            self.shift_time = 100
-            self.max_steps = 100
+            self.num_items = 1
+            self.num_blocked = 3
+            self.shift_time = 50
+            self.max_steps = 50
             self.use_shaping = True
 
         elif difficulty == "medium":
-            self.width = 7
-            self.height = 7
-            self.num_items = 4
-            self.num_blocked = 6
-            self.shift_time = 120
-            self.max_steps = 120
+            self.width = 5
+            self.height = 5
+            self.num_items = 2
+            self.num_blocked = 3
+            self.shift_time = 100
+            self.max_steps = 100
             self.use_shaping = True
 
         elif difficulty == "hard":
-            self.width = 10
-            self.height = 10
-            self.num_items = 6
-            self.num_blocked = 15
-            self.shift_time = 100
-            self.max_steps = 100
+            self.width = 7
+            self.height = 7
+            self.num_items = 3
+            self.num_blocked = 8
+            self.shift_time = 150
+            self.max_steps = 150
             self.use_shaping = False
 
         else:
-            raise ValueError(f"Invalid difficulty: {difficulty}")
+            raise ValueError(f"Invalid difficulty: {difficulty!r}. Must be 'easy', 'medium', or 'hard'.")
 
         self._diag: float = float(self.height + self.width)
 
@@ -188,16 +196,17 @@ class WarehouseEnv(gym.Env):
 
         terminated: bool = False
         truncated: bool = False
-        reward: float = R_STEP
 
         cell = self.grid.get(nx, ny)
 
-        # Blocked or wall
+        # ── Blocked / out-of-bounds move ──────────────────────────────────
         if cell is None or cell == Grid.OBSTACLE:
-            reward = R_BLOCKED
+            # Apply collision penalty; do NOT add R_STEP (no movement occurred)
+            reward: float = R_BLOCKED
             self.steps += 1
             self.robot.consume()
 
+            # Timeout check: only fire R_TIMEOUT once (on termination step)
             if self.robot.shift_time <= 0:
                 reward += R_TIMEOUT
                 terminated = True
@@ -206,7 +215,9 @@ class WarehouseEnv(gym.Env):
 
             return self._obs(), reward, terminated, truncated, self._info()
 
-        # Move robot
+        # ── Valid move ────────────────────────────────────────────────────
+        reward = R_STEP
+
         self.grid.remove(cx, cy)
 
         if cell == Grid.VICTIM:
@@ -223,18 +234,19 @@ class WarehouseEnv(gym.Env):
         self.robot.consume()
         self.steps += 1
 
-        # Reward shaping
+        # ── Reward shaping (guidance signal only, low weight) ─────────────
         if self.use_shaping:
             curr: float = self._potential()
             reward += SHAPING_WEIGHT * (0.99 * curr - self._prev_shaping)
             self._prev_shaping = curr
 
-        # Termination
+        # ── Termination checks ────────────────────────────────────────────
         if all(item.is_picked for item in self.items):
             reward += R_COMPLETION
             terminated = True
 
         elif self.robot.shift_time <= 0:
+            # Timeout: only fire penalty once, do not combine with R_BLOCKED
             reward += R_TIMEOUT
             terminated = True
 
@@ -285,6 +297,11 @@ class WarehouseEnv(gym.Env):
         return sum(1 for item in self.items if not item.is_picked)
 
     def _potential(self) -> float:
+        """
+        Reward shaping potential: negative Manhattan distance to nearest item.
+        Normalized by grid diagonal so values are in (-1, 0].
+        Used only for shaping (not for scoring).
+        """
         active = [i for i in self.items if not i.is_picked]
         if not active:
             return 0.0

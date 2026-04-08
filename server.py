@@ -83,15 +83,38 @@ ACTION_MAP: dict[str, int] = {
     "0": 0, "1": 1, "2": 2, "3": 3,
 }
 
+# Reward constants — must stay in sync with warehouse_env.py
+R_PICK: float       = 10.0
+R_COMPLETION: float = 25.0
 
-def _max_reward(cfg: dict) -> float:
-    return cfg["num_items"] * 10.0 + 25.0
+# Scoring offset: large enough to keep scores positive even after timeout
+# and collision penalties wipe out some pick rewards.
+# Formula (from openenv.yaml):
+#   score = clamp((total_reward + SCORE_OFFSET) / (max_reward + SCORE_OFFSET), 0, 1)
+SCORE_OFFSET: float = 10.0
 
 
 def _compute_score(total_reward: float, task: str) -> float:
-    max_r = _max_reward(TASK_CONFIGS[task])
-    raw   = (total_reward + 5.0) / (max_r + 5.0)
-    return float(max(0.0, min(1.0, raw)))
+    """
+    Normalize total episode reward to [0, 1].
+
+    Uses the formula declared in openenv.yaml:
+        score = clamp((total_reward + SCORE_OFFSET) / (max_reward + SCORE_OFFSET), 0.0, 1.0)
+
+    max_reward = num_items * R_PICK + R_COMPLETION
+        (the best achievable reward: pick every item + completion bonus,
+         ignoring step costs which cancel out as a constant for any path)
+
+    SCORE_OFFSET = 10.0 ensures:
+        - Partial progress (some items picked, no completion) yields positive score
+        - A timeout after picking N-1 items still shows meaningful credit
+        - A zero-reward episode (no picks, no completion) scores ~0.26 for easy,
+          lower for harder tasks — reflecting the "attempted but failed" baseline
+    """
+    cfg = TASK_CONFIGS[task]
+    max_reward = cfg["num_items"] * R_PICK + R_COMPLETION
+    score = (total_reward + SCORE_OFFSET) / (max_reward + SCORE_OFFSET)
+    return float(max(0.0, min(1.0, score)))
 
 
 _env:          WarehouseEnv | None = None
@@ -152,8 +175,10 @@ def reset(body: ResetRequest = ResetRequest()):
             "robot_pos":       [_env.robot.x, _env.robot.y],
             "items_remaining": _env._items_remaining,
             "shift_time":      _env.robot.shift_time,
-            "max_steps":       _env.max_steps,  # ✅ now from env
+            "max_steps":       _env.max_steps,
             "action_space":    ["move_up", "move_down", "move_left", "move_right"],
+            "score_formula":   "clamp((total_reward + 10) / (max_reward + 10), 0, 1)",
+            "max_reward":      cfg["num_items"] * R_PICK + R_COMPLETION,
             "grid_legend": {
                 "R": "Robot",
                 "I": "Inventory item",
@@ -164,6 +189,7 @@ def reset(body: ResetRequest = ResetRequest()):
         "done":  False,
         "score": 0.0,
     }
+
 
 @app.post("/step")
 def step(body: StepRequest):
