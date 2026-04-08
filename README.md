@@ -1,9 +1,14 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
+---
+title: Warehouse RL
+emoji: 🤖
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # warehouse.rl
-=======
->>>>>>> 1887b2c (added readme)
+
 # Warehouse Robot Dispatch — OpenEnv
 
 [![OpenEnv](https://img.shields.io/badge/OpenEnv-compatible-blue)](https://huggingface.co/openenv)
