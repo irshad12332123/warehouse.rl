@@ -138,6 +138,9 @@ class ResetRequest(BaseModel):
 class StepRequest(BaseModel):
     action: str
 
+@app.get("/")
+def root():
+    return {"status": "running"}
 
 @app.get("/health")
 def health():
